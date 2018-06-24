@@ -55,7 +55,7 @@ architecture Behavioral of uart_interface is
 	component uart
 	GENERIC(
 		clk_freq		:	INTEGER		:= 50_000_000;	--frequency of system clock in Hertz
-		baud_rate	:	INTEGER		:= 19_200;		--data link baud rate in bits/second
+		baud_rate	:	INTEGER		:= 230_400;		--data link baud rate in bits/second
 		os_rate		:	INTEGER		:= 16;			--oversampling rate to find center of receive bits (in samples per baud period)
 		d_width		:	INTEGER		:= 8; 			--data bus width
 		parity		:	INTEGER		:= 0;				--0 for no parity, 1 for parity

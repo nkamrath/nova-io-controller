@@ -48,7 +48,8 @@ entity io_controller is
 		UART_RX_PINS 		: in STD_LOGIC_VECTOR((gNUM_UARTS-1) downto 0);
 		UART_TX_PINS		: out STD_LOGIC_VECTOR((gNUM_UARTS-1) downto 0);
 		INPUTS   			: in  STD_LOGIC_VECTOR((gNUM_INPUTS-1) downto 0);
-		OUTPUTS  			: out STD_LOGIC_VECTOR((gNUM_OUTPUTS-1) downto 0)
+		OUTPUTS  			: out STD_LOGIC_VECTOR((gNUM_OUTPUTS-1) downto 0);
+		NEOPIXEL_CONTROL  : out STD_LOGIC
 	);
 end io_controller;
 
@@ -74,12 +75,39 @@ architecture Behavioral of io_controller is
 		);
 	end component;
 	
+	component neopixel_controller
+		generic 
+		(
+			gCLOCK_PERIOD_NS			: natural := 20;  -- 50 Mhz clock is 2 ns period
+			gT0H_TIMING_NS				: natural := 400;
+			gT1H_TIMING_NS				: natural := 800;
+			gT0L_TIMING_NS				: natural := 850;
+			gT1L_TIMING_NS				: natural := 450;
+			gTRST_TIMING_NS			: natural := 80000;
+			gCOLOR_BIT_WIDTH			: natural := 2;
+			gCOLORS_PER_PIXEL			: natural := 4;
+			gINTENSITY_BIT_WIDTH		: natural := 8;
+			gADDRESS_BIT_WIDTH		: natural := 6;
+			gNUM_PIXELS					: natural := 12
+		);
+		port 
+		( 
+			CLK 					: in  STD_LOGIC;
+			nRESET 				: in  STD_LOGIC;
+			WRITE_EN 			: in  STD_LOGIC;
+			COLOR 				: in  STD_LOGIC_VECTOR ((gCOLOR_BIT_WIDTH-1) downto 0);
+			INTENSITY 			: in  STD_LOGIC_VECTOR ((gINTENSITY_BIT_WIDTH-1) downto 0);
+			ADDRESS 				: in  STD_LOGIC_VECTOR ((gADDRESS_BIT_WIDTH-1) downto 0);
+			NEOPIXEL_CONTROL 	: out  STD_LOGIC
+		);
+	end component;
+	
 	
 	TYPE rx_machine IS(idle, marker, wait_marker, parse1, wait1, parse2, wait2, write_data, wait_tx, wait3);		--tranmit state machine data type
 	TYPE tx_machine IS(idle, tx1, tx2);															--tranmit state machine data type
 	
 	-- dio_rw_inv is dio with inverted output (output of 1 indicates a digital output signal of 0
-	TYPE register_type_t IS (dio_r, dio_rw, dio_rw_inv, pwm, pwm_inv, data);
+	TYPE register_type_t IS (dio_r, dio_rw, dio_rw_inv, dio_rw_inv_pwm_ovr, pwm, pwm_inv, data);
 	TYPE register_type_array_t IS ARRAY(natural range 0 to (gNUM_REGISTERS - 1)) of register_type_t;
 	
 	TYPE slv_8_t IS ARRAY(natural range 0 to (gNUM_UARTS-1)) of std_logic_vector(7 downto 0);
@@ -88,7 +116,7 @@ architecture Behavioral of io_controller is
 	type register_map_t is ARRAY(natural range 0 to (gNUM_REGISTERS - 1)) of std_logic_vector((gREGISTER_WIDTH - 1) downto 0);
 	
 	constant register_types	   : register_type_array_t := (
-		dio_rw_inv, pwm_inv); --dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw,
+		pwm_inv, pwm_inv, dio_rw_inv_pwm_ovr, dio_rw_inv_pwm_ovr, dio_rw_inv, dio_rw_inv, dio_rw_inv, dio_rw_inv, dio_rw_inv, dio_rw_inv);-- dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw,
 --		dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw,
 --		dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw,
 --		dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw, dio_rw,
@@ -98,6 +126,11 @@ architecture Behavioral of io_controller is
 --		data, data, data, data, data, data, data, data, data, data, data, data, data, data, data, data
 --	);
 
+	constant DRIVER_TURN_SIGNAL_REGISTER_INDEX : natural := 0;
+	constant PASS_TURN_SIGNAL_REGISTER_INDEX   : natural := 1;
+	constant DRIVER_BRAKE_LIGHT_REGISTER_INDEX : natural := 2;
+	constant PASS_BRAKE_LIGHT_REGISTER_INDEX   : natural := 3;
+
 	constant UART_MARKER_BYTE			 : std_logic_vector(7 downto 0) := x"55";
 	
 	constant DIO_DIGITAL_WRITE_INDEX  : natural := 0;
@@ -105,10 +138,15 @@ architecture Behavioral of io_controller is
 	constant DIO_PREVIOUS_INPUT_INDEX : natural := 2;
 	constant DIO_CURRENT_OUTPUT_INDEX : natural := 3;
 	
+	constant DIO_PWM_OVR_PWM_CHANNEL_LOWER_INDEX : natural := 16;
+	constant DIO_PWM_OVR_PWM_CHANNEL_UPPER_INDEX : natural := 22;
+	constant DIO_PWM_OVR_WAS_OVERRIDDEN_INDEX : natural := 31;
+	
 	constant PWM_ENABLE_INDEX			 : natural := 12;
 	constant PWM_WRITE_MAX_INDEX		 : natural := 12;
 	constant PWM_CURRENT_OUTPUT_STATE_INDEX : natural := 13;
 	constant PWM_LAST_PIN_INPUT_INDEX		 : natural := 14;
+	constant NEOPIXEL_REGISTER_ADDRESS		 : natural := 60;
 	
 	constant INPUT_CLOCK_FREQUENCY_HZ : natural := 50_000_000;
 	constant HZ_PWM_DIVISOR				 : natural := 500_000;
@@ -140,6 +178,11 @@ architecture Behavioral of io_controller is
 	signal tx_data						: std_logic_vector((gREGISTER_WIDTH-1) downto 0);
 	signal tx_done						: std_logic;
 	
+	signal neopixel_write_en		: std_logic;
+	signal neopixel_color			: std_logic_vector(1 downto 0);
+	signal neopixel_intensity		: std_logic_vector(7 downto 0);
+	signal neopixel_address			: std_logic_vector(5 downto 0);
+	
 begin
 
 	uart_interface0 : uart_interface port map
@@ -168,6 +211,17 @@ begin
 		TX_FIFO_SIZE => uart_tx_fifo_size(1),
 		RX_DATA => uart_rx_data(1),
 		UART_TX_PIN => UART_TX_PINS(1)
+	);
+	
+	neopixel_1 : neopixel_controller port map
+	(
+		CLK => CLK,
+		nRESET => nRESET,
+		WRITE_EN => neopixel_write_en,
+		COLOR => neopixel_color,
+		INTENSITY => neopixel_intensity,
+		ADDRESS => neopixel_address,
+		NEOPIXEL_CONTROL => NEOPIXEL_CONTROL
 	);
 	
 	switch_interfaces : process(CLK)
@@ -310,12 +364,23 @@ begin
 	begin
 		if(rising_edge(CLK)) then
 			if(nRESET = '0') then
-				register_map <= (others => (others => '0'));
+				register_map(DRIVER_TURN_SIGNAL_REGISTER_INDEX) <= std_logic_vector(to_unsigned(2#0000000110010#, gREGISTER_WIDTH)); --hard code turn signal pwm period and enables
+				register_map(PASS_TURN_SIGNAL_REGISTER_INDEX) <= std_logic_vector(to_unsigned(2#0000000110010#, gREGISTER_WIDTH));
+				register_map(DRIVER_BRAKE_LIGHT_REGISTER_INDEX) <= std_logic_vector(to_unsigned(2#00000000000000000#, gREGISTER_WIDTH));
+				register_map(PASS_BRAKE_LIGHT_REGISTER_INDEX) <= std_logic_vector(to_unsigned(2#10000000000000000#, gREGISTER_WIDTH));
+				
+				--register_map <= (others => (others => '0'));
+				neopixel_write_en <= '0';
 			else
-			
+				neopixel_write_en <= '0';
 			   --update register map digital write value
 				if(rx_state = write_data) then
-					if(register_types(to_integer(unsigned(rx_address(6 downto 0)))) = dio_rw or register_types(to_integer(unsigned(rx_address(6 downto 0)))) = dio_rw_inv) then
+					if(to_integer(unsigned(rx_address(6 downto 0))) = NEOPIXEL_REGISTER_ADDRESS) then
+						neopixel_write_en <= '1';
+						neopixel_intensity <= rx_data(7 downto 0);
+						neopixel_color <= rx_data(9 downto 8);
+						neopixel_address <= rx_data(15 downto 10);
+					elsif(register_types(to_integer(unsigned(rx_address(6 downto 0)))) = dio_rw or register_types(to_integer(unsigned(rx_address(6 downto 0)))) = dio_rw_inv) then
 						register_map(to_integer(unsigned(rx_address(6 downto 0))))(DIO_DIGITAL_WRITE_INDEX) <= rx_data(0);
 						register_map(to_integer(unsigned(rx_address(6 downto 0))))(DIO_CURRENT_OUTPUT_INDEX) <= rx_data(0);
 					elsif(register_types(to_integer(unsigned(rx_address(6 downto 0)))) = pwm or register_types(to_integer(unsigned(rx_address(6 downto 0)))) = pwm_inv) then
@@ -347,8 +412,7 @@ begin
 						if(register_map(I)(PWM_LAST_PIN_INPUT_INDEX) /= inputs(I)) then
 							register_map(I)(PWM_ENABLE_INDEX) <= inputs(I);
 							register_map(I)(PWM_CURRENT_OUTPUT_STATE_INDEX) <= inputs(I);
-						end if;
-						if(register_map(I)(PWM_ENABLE_INDEX) = '1') then
+						elsif(register_map(I)(PWM_ENABLE_INDEX) = '1') then
 							--rising edge of pwm output means we decrement the internal count register
 							if(pwm_output_1z = '1' and pwm_output_2z = '0' and unsigned(register_map(I)(9 downto 0)) > 0) then
 								if(unsigned(register_map(I)(25 downto 16)) = 0) then
@@ -359,6 +423,20 @@ begin
 									--otherwise decrement one from the internal counter state
 									register_map(I)(25 downto 16) <= std_logic_vector(unsigned(register_map(I)(25 downto 16))-1);
 								end if;
+							end if;
+						end if;
+					-- dio with a pwm override when the pwm is enabled
+					elsif(register_types(I) = dio_rw_inv_pwm_ovr) then
+						if(register_map(to_integer(unsigned(register_map(I)(DIO_PWM_OVR_PWM_CHANNEL_UPPER_INDEX downto DIO_PWM_OVR_PWM_CHANNEL_LOWER_INDEX))))(PWM_ENABLE_INDEX) = '1') then
+							register_map(I)(DIO_CURRENT_OUTPUT_INDEX) <= register_map(to_integer(unsigned(register_map(I)(DIO_PWM_OVR_PWM_CHANNEL_UPPER_INDEX downto DIO_PWM_OVR_PWM_CHANNEL_LOWER_INDEX))))(PWM_CURRENT_OUTPUT_STATE_INDEX);
+							register_map(I)(DIO_PWM_OVR_WAS_OVERRIDDEN_INDEX) <= '1';
+						--else pwm not overriding this signal, so update the current output based on pin input
+						else
+							register_map(I)(DIO_CURRENT_INPUT_INDEX) <= inputs(I);
+							register_map(I)(DIO_PREVIOUS_INPUT_INDEX) <= register_map(I)(DIO_CURRENT_INPUT_INDEX);
+							if(register_map(I)(DIO_CURRENT_INPUT_INDEX) /= register_map(I)(DIO_PREVIOUS_INPUT_INDEX) or register_map(I)(DIO_PWM_OVR_WAS_OVERRIDDEN_INDEX) = '1') then
+								register_map(I)(DIO_CURRENT_OUTPUT_INDEX) <= register_map(I)(DIO_CURRENT_INPUT_INDEX);
+								register_map(I)(DIO_PWM_OVR_WAS_OVERRIDDEN_INDEX) <= '0';
 							end if;
 						end if;
 					end if;
@@ -390,6 +468,8 @@ begin
 						outputs(I) <= register_map(I)(PWM_CURRENT_OUTPUT_STATE_INDEX);
 					 elsif(register_types(I) = pwm_inv) then
 						outputs(I) <= not register_map(I)(PWM_CURRENT_OUTPUT_STATE_INDEX);
+					 elsif(register_types(I) = dio_rw_inv_pwm_ovr) then
+						outputs(I) <= not register_map(I)(DIO_CURRENT_OUTPUT_INDEX);
 					 end if;
 				end loop;
 			end if;

@@ -20,11 +20,29 @@ NET "UART_RX_PINS<1>" LOC = P50 | IOSTANDARD = LVTTL;
 NET "UART_TX_PINS<0>" LOC = P41 | IOSTANDARD = LVTTL;
 NET "UART_TX_PINS<1>" LOC = P51 | IOSTANDARD = LVTTL;
 
-NET "digital_in<0>" LOC = P11 | IOSTANDARD = LVTTL;
-NET "digital_in<1>" LOC = P14 | IOSTANDARD = LVTTL;
+NET "digital_out<0>" LOC = P57 | IOSTANDARD = LVTTL;
+NET "digital_out<1>" LOC = P66 | IOSTANDARD = LVTTL;
+NET "digital_out<2>" LOC = P74 | IOSTANDARD = LVTTL;
+NET "digital_out<3>" LOC = P78 | IOSTANDARD = LVTTL;
+NET "digital_out<4>" LOC = P80 | IOSTANDARD = LVTTL;
+NET "digital_out<5>" LOC = P82 | IOSTANDARD = LVTTL;
+NET "digital_out<6>" LOC = P84 | IOSTANDARD = LVTTL;
+NET "digital_out<7>" LOC = P87 | IOSTANDARD = LVTTL;
+NET "digital_out<8>" LOC = P92 | IOSTANDARD = LVTTL;
+NET "digital_out<9>" LOC = P94 | IOSTANDARD = LVTTL;
 
-NET "digital_out<0>" LOC = P16 | IOSTANDARD = LVTTL;
-NET "digital_out<1>" LOC = P17 | IOSTANDARD = LVTTL;
+NET "digital_in<0>" LOC = P58 | IOSTANDARD = LVTTL;
+NET "digital_in<1>" LOC = P67 | IOSTANDARD = LVTTL;
+NET "digital_in<2>" LOC = P75 | IOSTANDARD = LVTTL;
+NET "digital_in<3>" LOC = P79 | IOSTANDARD = LVTTL;
+NET "digital_in<4>" LOC = P81 | IOSTANDARD = LVTTL;
+NET "digital_in<5>" LOC = P83 | IOSTANDARD = LVTTL;
+NET "digital_in<6>" LOC = P85 | IOSTANDARD = LVTTL;
+NET "digital_in<7>" LOC = P88 | IOSTANDARD = LVTTL;
+NET "digital_in<8>" LOC = P93 | IOSTANDARD = LVTTL;
+NET "digital_in<9>" LOC = P95 | IOSTANDARD = LVTTL;
+
+NET "neopixel_control" LOC = P99 | IOSTANDARD = LVTTL;
  
 #NET "spi_mosi" LOC = P44 | IOSTANDARD = LVTTL;
 #NET "spi_miso" LOC = P45 | IOSTANDARD = LVTTL;

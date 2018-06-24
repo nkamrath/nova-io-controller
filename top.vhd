@@ -43,8 +43,10 @@ entity top is
 				UART_TX_PINS 		: out STD_LOGIC_VECTOR(1 downto 0);
 				LED					: out STD_LOGIC_VECTOR(7 downto 0);
 				
-				DIGITAL_IN 			: in std_logic_vector(1 downto 0);
-				DIGITAL_OUT 		: out std_logic_vector(1 downto 0)
+				DIGITAL_IN 			: in std_logic_vector(9 downto 0);
+				DIGITAL_OUT 		: out std_logic_vector(9 downto 0);
+				
+				NEOPIXEL_CONTROL  : out std_logic
 			);
 end top;
 
@@ -54,8 +56,9 @@ architecture Behavioral of top is
 		generic
 		(
 			gFIFO_SIZE		: natural := 100;
-			gNUM_INPUTS		: natural := 2;
-			gNUM_OUTPUTS   : natural := 2;
+			gNUM_INPUTS		: natural := 10;
+			gNUM_OUTPUTS   : natural := 10;
+			gNUM_REGISTERS : natural := 10;
 			gNUM_UARTS		: natural := 2
 		);
 		Port 
@@ -65,7 +68,8 @@ architecture Behavioral of top is
 			UART_RX_PINS 		: in STD_LOGIC_VECTOR((gNUM_UARTS-1) downto 0);
 			UART_TX_PINS		: out STD_LOGIC_VECTOR((gNUM_UARTS-1) downto 0);
 			INPUTS   			: in  STD_LOGIC_VECTOR((gNUM_INPUTS-1) downto 0);
-			OUTPUTS  			: out STD_LOGIC_VECTOR((gNUM_OUTPUTS-1) downto 0)
+			OUTPUTS  			: out STD_LOGIC_VECTOR((gNUM_OUTPUTS-1) downto 0);
+			NEOPIXEL_CONTROL  : out  STD_LOGIC
 		);
 	end component;
 	
@@ -85,7 +89,8 @@ begin
 		UART_RX_PINS	=> UART_RX_PINS,
 		UART_TX_PINS	=> UART_TX_PINS,
 		INPUTS => DIGITAL_IN,
-		OUTPUTS => DIGITAL_OUT--LED(7 downto 6)
+		OUTPUTS => DIGITAL_OUT,
+		NEOPIXEL_CONTROL => NEOPIXEL_CONTROL
 	);
 	
 	update_led : process(CLK)
@@ -98,7 +103,7 @@ begin
 			else
 				clock_counter <= clock_counter + 1;
 			end if;
-			LED(7 downto 0) <= std_logic_vector(to_unsigned(high_count, 8));
+			LED(7 downto 1) <= std_logic_vector(to_unsigned(high_count, 7));
 		end if;
 	end process update_led;
 
